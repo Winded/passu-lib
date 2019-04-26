@@ -1,0 +1,1 @@
+This is the shared module for [passu](https://github.com/Winded/passu), used by all clients.
