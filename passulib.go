@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/guregu/null"
 	"golang.org/x/crypto/scrypt"
@@ -20,8 +21,10 @@ const SCRYPT_N = 32768
 const SCRYPT_R = 8
 const SCRYPT_P = 1
 
+const SIGNATURE = "PASSU"
 const SCRYPT_SALT_LEN = 32
 const AES_CBC_KEYLEN = 32
+const AES_CBC_IVLEN = 16
 
 var entryNameRegexp *regexp.Regexp
 
@@ -128,8 +131,10 @@ func removeZeroPad(bytes []byte) []byte {
 // from given data with the raw, non-hashed inputPassword
 func PasswordDatabaseFromData(data []byte, inputPassword string) (*PasswordDatabase, error) {
 	var (
+		signature       []byte
 		ivByteLength    byte
 		iv              []byte
+		saltLen         byte
 		passwordSalt    []byte
 		edataByteLength int32
 		edata           []byte
@@ -139,10 +144,16 @@ func PasswordDatabaseFromData(data []byte, inputPassword string) (*PasswordDatab
 
 	bytes := bytes.NewBuffer(data)
 
+	signature = bytes.Next(len(SIGNATURE))
+	if string(signature) != SIGNATURE {
+		return nil, errors.New("File is not a password file")
+	}
+
 	binary.Read(bytes, binary.BigEndian, &ivByteLength)
 	iv = bytes.Next(int(ivByteLength))
 
-	passwordSalt = bytes.Next(SCRYPT_SALT_LEN)
+	binary.Read(bytes, binary.BigEndian, &saltLen)
+	passwordSalt = bytes.Next(int(saltLen))
 
 	binary.Read(bytes, binary.BigEndian, &edataByteLength)
 
@@ -346,7 +357,7 @@ func (this *PasswordDatabase) RemoveEntry(name string) (PasswordEntry, error) {
 
 // Save serializes and encrypts the password database, returning the encrypted data
 func (this *PasswordDatabase) Save() []byte {
-	ivLen := byte(16)
+	ivLen := byte(AES_CBC_IVLEN)
 	iv := make([]byte, ivLen)
 	io.ReadFull(rand.Reader, iv)
 	c, err := aes.NewCipher(this.passwordHash)
@@ -354,6 +365,8 @@ func (this *PasswordDatabase) Save() []byte {
 		panic(err)
 	}
 	crypter := cipher.NewCBCEncrypter(c, iv)
+
+	saltLen := byte(len(this.passwordSalt))
 
 	sdata, err := json.Marshal(this.data)
 	if err != nil {
@@ -366,9 +379,12 @@ func (this *PasswordDatabase) Save() []byte {
 
 	buf := new(bytes.Buffer)
 
+	buf.Write([]byte(SIGNATURE))
+
 	binary.Write(buf, binary.BigEndian, &ivLen)
 	buf.Write(iv)
 
+	binary.Write(buf, binary.BigEndian, &saltLen)
 	buf.Write(this.passwordSalt)
 
 	binary.Write(buf, binary.BigEndian, &edataLen)
