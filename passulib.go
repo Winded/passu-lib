@@ -28,14 +28,6 @@ const AES_CBC_IVLEN = 16
 
 var entryNameRegexp *regexp.Regexp
 
-type Error struct {
-	Message string
-}
-
-func (this Error) Error() string {
-	return fmt.Sprintf("Passu Error: %q", this.Message)
-}
-
 type PasswordPolicy struct {
 	Length       null.Int
 	UseLowercase null.Bool
@@ -178,7 +170,7 @@ func PasswordDatabaseFromData(data []byte, inputPassword string) (*PasswordDatab
 	err = json.Unmarshal(sdata, &pwData)
 
 	if err != nil {
-		return nil, err
+		return nil, errors.New("Failed to parse file data. Wrong password?")
 	}
 
 	db := NewPasswordDatabase(inputPassword)
@@ -215,7 +207,7 @@ func (this *PasswordDatabase) GetDefaultPolicy() PasswordPolicy {
 
 func (this *PasswordDatabase) SetDefaultPolicy(value PasswordPolicy) error {
 	if value.Length.Valid && value.Length.Int64 < 0 {
-		return Error{"Password policy length can't be 0 or lower"}
+		return errors.New("Password policy length can't be 0 or lower")
 	}
 
 	this.data.PasswordPolicy = updatePolicy(this.data.PasswordPolicy, value)
@@ -241,7 +233,7 @@ func (this *PasswordDatabase) SetPassword(value string) {
 func (this *PasswordDatabase) GeneratePassword(entryName string) (PasswordEntry, error) {
 	entry, entryIdx := this.GetEntry(entryName)
 	if entryIdx == -1 {
-		return PasswordEntry{}, Error{fmt.Sprintf("Entry %q not found.", entryName)}
+		return PasswordEntry{}, errors.New(fmt.Sprintf("Entry %q not found.", entryName))
 	}
 
 	policy := updatePolicy(this.data.PasswordPolicy, entry.PolicyOverride)
@@ -261,7 +253,7 @@ func (this *PasswordDatabase) GeneratePassword(entryName string) (PasswordEntry,
 	}
 
 	if len(sets) == 0 {
-		return PasswordEntry{}, Error{"Entry policy is invalid. No character sets are allowed."}
+		return PasswordEntry{}, errors.New("Entry policy is invalid. No character sets are allowed.")
 	}
 
 	charactersPerSet := int(math.Ceil(float64(policy.Length.Int64) / float64(len(sets))))
@@ -312,11 +304,11 @@ func (this *PasswordDatabase) GetEntry(name string) (PasswordEntry, int) {
 
 func (this *PasswordDatabase) AddEntry(entry PasswordEntry) error {
 	if !entryNameRegexp.MatchString(entry.Name) {
-		return Error{"Name must only contain alphabetic characters, numbers and dashes"}
+		return errors.New("Name must only contain alphabetic characters, numbers and dashes")
 	}
 	_, existingEntryIndex := this.GetEntry(entry.Name)
 	if existingEntryIndex != -1 {
-		return Error{fmt.Sprintf("Entry %q already exists.", entry.Name)}
+		return errors.New(fmt.Sprintf("Entry %q already exists.", entry.Name))
 	}
 
 	this.data.Entries = append(this.data.Entries, entry)
@@ -327,16 +319,16 @@ func (this *PasswordDatabase) AddEntry(entry PasswordEntry) error {
 func (this *PasswordDatabase) UpdateEntry(name string, updatedEntry PasswordEntry) error {
 	_, index := this.GetEntry(name)
 	if index == -1 {
-		return Error{fmt.Sprintf("Entry %q not found.", name)}
+		return errors.New(fmt.Sprintf("Entry %q not found.", name))
 	}
 
 	if !entryNameRegexp.MatchString(updatedEntry.Name) {
-		return Error{"Name must only contain alphabetic characters, numbers and dashes"}
+		return errors.New("Name must only contain alphabetic characters, numbers and dashes")
 	}
 
 	_, existingEntryIndex := this.GetEntry(updatedEntry.Name)
 	if name != updatedEntry.Name && existingEntryIndex != -1 {
-		return Error{fmt.Sprintf("Entry %q already exists.", updatedEntry.Name)}
+		return errors.New(fmt.Sprintf("Entry %q already exists.", updatedEntry.Name))
 	}
 
 	this.data.Entries[index] = updatedEntry
@@ -347,7 +339,7 @@ func (this *PasswordDatabase) UpdateEntry(name string, updatedEntry PasswordEntr
 func (this *PasswordDatabase) RemoveEntry(name string) (PasswordEntry, error) {
 	entry, index := this.GetEntry(name)
 	if index == -1 {
-		return PasswordEntry{}, Error{fmt.Sprintf("Entry %q not found.", name)}
+		return PasswordEntry{}, errors.New(fmt.Sprintf("Entry %q not found.", name))
 	}
 
 	this.data.Entries = append(this.data.Entries[:index], this.data.Entries[(index+1):]...)

@@ -1,6 +1,7 @@
 package passulib_test
 
 import (
+	"errors"
 	"github.com/guregu/null"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -139,7 +140,7 @@ var _ = Describe("PasswordDatabase", func() {
 				passulib.PasswordPolicy{},
 			})
 
-			Expect(err).To(Equal(passulib.Error{"Name must only contain alphabetic characters, numbers and dashes"}))
+			Expect(err).To(Equal(errors.New("Name must only contain alphabetic characters, numbers and dashes")))
 		})
 		It("should fail when duplicate entry is added", func() {
 			pwInput := "testpassword"
@@ -162,7 +163,7 @@ var _ = Describe("PasswordDatabase", func() {
 				passulib.PasswordPolicy{},
 			})
 
-			Expect(err).To(Equal(passulib.Error{"Entry \"test\" already exists."}))
+			Expect(err).To(Equal(errors.New("Entry \"test\" already exists.")))
 		})
 		It("should successfully edit an entry", func() {
 			pwInput := "testpassword"
